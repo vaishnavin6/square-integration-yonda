@@ -15,16 +15,14 @@
 
 **3. Partial Payments via Square**
 
-  Step 1: Partial Payment Request   -  Multiple partial payments are processed through Square.
+  	Step 1: Partial Payment Request   -  Multiple partial payments are processed through Square.
 	Step 2: Payment Confirmation      -  Square confirms each payment, updating the transaction status.
 	Step 3: Data Aggregation          -  Yonda aggregates the payment data for accurate tax calculation.
 
 **4. Enhanced Security Measures**
 
-	•	Tokenization
-	•	Implement tokenization for all sensitive payment data to minimize exposure.
-	•	Advanced Encryption
-	•	Use AES-256 encryption for all data in transit and at rest to ensure maximum security.
+	•	Tokenization		-	Implement tokenization for all sensitive payment data to minimize exposure.
+	•	Advanced Encryption	-	Use AES-256 encryption for all data in transit and at rest to ensure maximum security.
 
 **5. Intelligent Error Handling**
 
