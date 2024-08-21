@@ -1,54 +1,63 @@
-import squareup
+import os
 import logging
-from flask import request, jsonify
-from squareup.client import Client
+from dotenv import load_dotenv
+from square.client import Client
+from store_data import DatabaseManager
+
+load_dotenv()
 
 class SquareIntegration:
-    def __init__(self, square_access_token, db_manager):
-        self.client = Client(access_token=square_access_token, environment="sandbox")  # Use "production" for live
-        self.db_manager = db_manager
-    
-    def handle_webhook(self):
-        try:
-            webhook_data = request.json
-            logging.info(f"Received webhook: {webhook_data}")
-            
-            if 'type' in webhook_data and webhook_data['type'] == 'payment.created':
-                payment_data = webhook_data['data']['object']
-                logging.info(f"Payment Data: ID: {payment_data['id']}, Amount: {payment_data['amount_money']['amount']}, Currency: {payment_data['amount_money']['currency']}, Status: {payment_data['status']}")
-                self.db_manager.store_payment_data(payment_data)
-                
-            return jsonify({'status': 'success'}), 200
-        
-        except Exception as e:
-            logging.error(f"Error handling webhook: {e}")
-            return jsonify({'status': 'error'}), 500
+    def __init__(self):
+        logging.info("Initializing Square Integration")
+        self.client = Client(access_token=os.getenv("SQUARE_ACCESS_TOKEN"))
+        self.location_id = os.getenv("SQUARE_LOCATION_ID")
+        self.db_manager = DatabaseManager('sqlite:///payments.db')
+        logging.info("Square Integration initialized successfully")
 
-    #For testing
-    def capture_payment(self, source_id, amount_money, idempotency_key, location_id):
+    def handle_webhook(self, payment_data):
         try:
+            payment_object = payment_data.get('data', {}).get('object', {}).get('payment', {})
+            payment_id = payment_object.get('id', 'Unknown ID')
+            logging.info(f"Webhook received for payment ID: {payment_id}")
+            logging.debug(f"Full webhook data: {payment_data}")
+
+            if not payment_object:
+                raise ValueError("Missing payment object in webhook data.")
+
+            # Store payment data
+            self.db_manager.store_payment_data(payment_data)
+            logging.info(f"Payment data processed successfully for ID: {payment_id}")
+        except Exception as e:
+            logging.error(f"Error handling webhook for payment ID {payment_data.get('id', 'Unknown ID')}: {e}")
+
+    def capture_payment(self, source_id, amount_money, idempotency_key):
+        try:
+            logging.info(f"Initiating payment capture with idempotency key: {idempotency_key}")
             body = {
                 "idempotency_key": idempotency_key,
                 "amount_money": amount_money,
                 "source_id": source_id
             }
+            logging.debug(f"Payment capture request body: {body}")
             result = self.client.payments.create_payment(body)
             if result.is_success():
                 payment_id = result.body['payment']['id']
-                payment_status = result.body['payment']['status']
-                payment_amount = result.body['payment']['amount_money']['amount']
-                currency = result.body['payment']['amount_money']['currency']
-                logging.info(f"Payment captured successfully. ID: {payment_id}, Status: {payment_status}, Amount: {payment_amount} {currency}")
+                logging.info(f"Payment captured successfully. Payment ID: {payment_id}")
+                logging.debug(f"Payment capture response: {result.body}")
                 return result.body
             elif result.is_error():
                 logging.error(f"Payment capture failed: {result.errors}")
+                logging.debug(f"Failed payment capture response: {result.errors}")
                 return None
         except Exception as e:
             logging.error(f"Error capturing payment: {e}")
             return None
 
-    #For testing
-    def process_transaction(self, source_id, amount_money, idempotency_key, location_id):
-        payment_data = self.capture_payment(source_id, amount_money, idempotency_key, location_id)
-        if payment_data:
-            self.db_manager.store_payment_data(payment_data['payment'])  # Store in DB
+    def process_transaction(self, source_id, amount_money, idempotency_key):
+        logging.info(f"Processing transaction with idempotency key: {idempotency_key}")
+        payment_result = self.capture_payment(source_id, amount_money, idempotency_key)
+        if payment_result:
+            logging.info(f"Storing transaction data for payment ID: {payment_result['payment']['id']}")
+            self.db_manager.store_payment_data(payment_result)
+        else:
+            logging.warning(f"Transaction processing failed for idempotency key: {idempotency_key}")

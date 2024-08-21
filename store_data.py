@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, inspect
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
@@ -20,16 +20,54 @@ class DatabaseManager:
         self.engine = create_engine(db_url)
         Base.metadata.create_all(self.engine)
         self.Session = sessionmaker(bind=self.engine)
+        self.check_table_creation()
+
+    def check_table_creation(self):
+        inspector = inspect(self.engine)
+        tables = inspector.get_table_names()
+        if 'payments' in tables:
+            logging.info("Table 'payments' exists and was created successfully.")
+        else:
+            logging.error("Table 'payments' does not exist. There was an issue creating the table.")
 
     def store_payment_data(self, payment_data):
-        session = self.Session()
-        payment = Payment(
-            payment_id=payment_data['id'],
-            amount=payment_data['amount_money']['amount'] / 100.0,  # Convert cents to dollars
-            currency=payment_data['amount_money']['currency'],
-            status=payment_data['status']
-        )
-        session.add(payment)
-        session.commit()
-        logging.info("Payment data stored in the database.")
-        session.close()
+        session = None
+        try:
+            payment_object = payment_data['data']['object'].get('payment')
+            if not payment_object:
+                raise ValueError("Payment data is missing 'payment' object.")
+
+            payment_id = payment_object['id']
+            logging.info(f"Processing payment ID {payment_id} with status {payment_object.get('status', 'UNKNOWN')}")
+
+            session = self.Session()
+            existing_payment = session.query(Payment).filter_by(payment_id=payment_id).first()
+
+            if existing_payment:
+                logging.info(f"Payment with ID {payment_id} exists. Updating record.")
+                existing_payment.amount = payment_object['amount_money']['amount'] / 100.0
+                existing_payment.currency = payment_object['amount_money']['currency']
+                existing_payment.status = payment_object.get('status', 'UNKNOWN')
+                existing_payment.timestamp = datetime.utcnow()
+            else:
+                logging.info(f"Inserting new payment record for ID {payment_id}")
+                payment = Payment(
+                    payment_id=payment_id,
+                    amount=payment_object['amount_money']['amount'] / 100.0,
+                    currency=payment_object['amount_money']['currency'],
+                    status=payment_object.get('status', 'UNKNOWN')
+                )
+                session.add(payment)
+
+            session.commit()
+            logging.info(f"Payment with ID {payment_id} stored successfully.")
+        except Exception as e:
+            logging.error(f"Failed to store payment data: {e}")
+        finally:
+            if session:
+                session.close()
+
+# Example usage
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    db_manager = DatabaseManager('sqlite:///payments.db')
