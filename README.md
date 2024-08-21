@@ -1,11 +1,12 @@
 # square-integration-yonda
 **Introduction:**
-Integration of Square’s payment processing with Yonda’s sales tax automation platform. Includes API setup, webhook configuration, and data transformation for accurate tax calculations on Square transactions. Enhances Yonda’s capabilities for businesses using Square for payments.
+Integration of Square’s payment processing with Yonda’s sales tax automation platform. 
+Includes API setup, webhook configuration, and data transformation for accurate tax calculations on Square transactions. 
+Enhances Yonda’s capabilities for businesses using Square for payments.
 
-
-**Key Objectives**	      : Integrate Square payment processing into Yonda
-		                        Automate the storage of payment data
-		                        Implement secure and efficient data handling and processing
+**Key Objectives:**	Integrate Square payment processing into Yonda
+	                Automate the storage of payment data
+		        Implement secure and efficient data handling and processing
 
 **Technologies/Tools Used:**
                       • Python		  : Primary language for backend development
